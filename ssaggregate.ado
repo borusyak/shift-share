@@ -48,7 +48,7 @@ program def ssaggregate
 		* Deal with missing industry shares
 		use `"`sfilename'"', clear
 		collapse (sum) `s', by(`l' `t')
-		replace `s' = 1-`s'
+		replace `s' = 1-float(`s')
 
 			* If sum of shares varies, will verify S_l is controlled for
 			sum `s'
