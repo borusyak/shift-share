@@ -1,5 +1,5 @@
-*! version 1.1, 22aug2018
-*! Kirill Borusyak (borusyak@princeton.edu), Peter Hull (hull@uchicago.edu), Xavier Jaravel (x.jaravel@lse.ac.uk)
+*! version 1.2.1, apr2019
+*! Kirill Borusyak (k.borusyak@ucl.ac.uk), Peter Hull (hull@uchicago.edu), Xavier Jaravel (x.jaravel@lse.ac.uk)
 program def ssaggregate
 	version 11.0
 	syntax varlist [if] [in] [aw iw fw pw/], n(string) s(string) [t(varlist) Controls(string asis) ADDMissing ///
@@ -64,6 +64,7 @@ program def ssaggregate
 			
 			* Add missing industry
 			if ("`addmissing'"!="") {
+				replace `s'=0 if inrange(`s',-10^-5,0) // if the sum of shares is one, it can look like 1.00001 => creates negative weights
 				append using `"`sfilename'"'
 				tempfile newshares
 				save `"`newshares'"', replace
@@ -123,5 +124,7 @@ program def ssaggregate
 		* Collapse to industry level
 		if ("`weight'"!="") replace `s' = `s' * (`exp')
 		collapse (rawsum) s_n=`s' (mean) `vars' [aw=`s'], by(`n' `t') fast
+		sum s_n
+		replace s_n = s_n/r(sum)
 	}
 end
