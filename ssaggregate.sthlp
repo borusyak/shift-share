@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 1.2 April 2019}{...}
+{* *! version 1.2.2 January 2020}{...}
 {vieweralsosee "" "--"}{...}
 {vieweralsosee "Help command2 (if installed)" "help command2"}{...}
 {viewerjumpto "Syntax" "ssaggregate##syntax"}{...}
@@ -44,6 +44,7 @@ Using "wide" exposure weights, saved in memory:
 {syntab:General}
 {synopt:{opt t(varlist)}} period identifiers {p_end}
 {synopt:{opt c:ontrols(strings)}}  sets of control variables to be partialled out {p_end}
+{synopt:{opt a:bsorb(strings)}}  sets of catagorical variables that identify fixed effects to be absorbed {p_end}
 {synopt:{opt addm:issing}}  create "missing industry" observations {p_end}
 
 {syntab:With "long" exposure weights}
@@ -66,7 +67,7 @@ Using "wide" exposure weights, saved in memory:
 {title:Description}
 
 {pstd}
-{cmd:ssaggregate} converts "location-level" variables in a shift-share IV dataset to a dataset of exposure-weighted "industry-level" aggregates, as described in {browse "https://arxiv.org/abs/1806.01221":Borusyak, Hull, and Jaravel (2019)}.
+{cmd:ssaggregate} converts "location-level" variables in a shift-share IV dataset to a dataset of exposure-weighted "industry-level" aggregates, as described in {browse "https://arxiv.org/abs/1806.01221":Borusyak, Hull, and Jaravel (2020)}.
 
 {pstd} There are two ways to specify {cmd:ssaggregate}, depending on whether the industry exposure weights are saved in "long" format (in a separate dataset) or in "wide" format (in the dataset in memory). 
 In general {cmd:ssaggregate} will execute faster with "long" exposure weights. See the 
@@ -88,18 +89,26 @@ the variables in {bf:n()} (and {bf:t()}, when specified).
 
 {pstd}When the {bf:controls()}
 option is included the location-level variables are first residualized by each of the specified sets of controls. Each set should be included in the option as a separate string (in quotes);
-for example as {bf:controls("var1" "var1 var2" "var1 var3 var4")}, where {it:var1}-{it:var4} are names of control variables in memory. The transformed variables are then indexed by the control set number: for example 
-{it:y1}-{it:y4} when {it:y} is the variable in memory to be transformed. An exception is when {bf:controls()} is included with only a single set of controls (still in quotes),
-or when {bf:controls()} is omitted. Then the transformation of variable {it:y} is also named {it:y}.
+for example as {bf:controls("var1" "var1 var2" "var1 var3 var4")}, where {it:var1}-{it:var4} are names of control variables in memory. If one set of controls is empty, it can be included (as {bf:""}) anywhere but in the final position 
+due to a technical issue. The transformed variables are then indexed by the control set number: for example 
+{it:y1}-{it:y3} when {it:y} is the variable in memory to be transformed. An exception is when either {bf:controls()} or {bf:absorb()} or both are included with only a single set of controls or fixed effects (still in quotes),
+or when both commands are omitted. Then the transformation of variable {it:y} is also named {it:y}.
+
+{pstd}When the {bf:absorb()}
+option is included the location-level variables are first residualized by each of the specified sets of fixed effects. Each set should be included as a separate string (in quotes), as in the {bf:controls()} option.
+If one set of controls is empty, it can be included (as {bf:""}) anywhere but in the final position due to a technical issue.
+When both options are specified the sets of controls and fixed effects in the same position are included together in the first-step residualization. For example specifying both {bf:controls("var1" "var1 var2")}
+and {bf:absorb("fe1" "fe1" "fe1 fe2")} will produce transformed variables {it:y1}-{it:y3} when {it:y} is the variable in memory to be transformed, where {it:y1} is residualized on {it:var1} and {it:fe1}, {it:y2} is
+residualized on {it:var1}, {it:var2}, and {it:fe1}, and {it:y3} is residualized on {it:fe1} and {it:fe2}.
 
 {pstd}Including the {bf:addmissing} option generates a "missing industry" observation, with exposure weights equal to one minus
-the sum of a location's exposure weights. {browse "https://arxiv.org/abs/1806.01221":Borusyak, Hull, and Jaravel (2019)} recommend including
+the sum of a location's exposure weights. {browse "https://arxiv.org/abs/1806.01221":Borusyak, Hull, and Jaravel (2020)} recommend including
 this option when the the sum of exposure weights varies across locations (see Section 3.2). The missing industry observations will
 be identified by missing identifiers in {bf:n()}.
 
 {pstd}Note that no information on industry shocks is used in the execution of {bf:ssaggregate};  once run, users can merge shocks and any industry-level controls to the aggregated dataset.
 They can then estimate and validate quasi-experimental shift-share IV regressions with 
-other Stata procedures. See Section 4 of {browse "https://arxiv.org/abs/1806.01221":Borusyak, Hull, and Jaravel (2019)} for details and below for {it:{help ssaggregate##examples:examples}}  of such procedures.
+other Stata procedures. See Section 4 of {browse "https://arxiv.org/abs/1806.01221":Borusyak, Hull, and Jaravel (2020)} for details and below for {it:{help ssaggregate##examples:examples}}  of such procedures.
 
 
 {marker options}{...}
@@ -112,6 +121,9 @@ other Stata procedures. See Section 4 of {browse "https://arxiv.org/abs/1806.012
 {phang}
 {opt c:ontrols(varlist)}  gives sets of control variable to be separately partialled out prior to aggregation.  Each set should be included as a separate string in quotes, even when only one set is included.
 Variable wildcards, factor variables, and time-series operators are allowed in the strings, as if they were sets of regression controls.{p_end}
+
+{phang}
+{opt a:bsorb(varlist)}  gives sets of catagorical variables identifying fixed effects to be separately absorbed prior to aggregation.  Each set should be included as a separate string in quotes, even when only one set is included.{p_end}
 
 {phang}
 {opt addm:issing} creates observations corresponding to the "missing industry" for when the exposure shares do not sum to one.
@@ -149,7 +161,7 @@ for each time period). {p_end}
 {marker examples}{...}
 {title:Examples}
 
-{pstd}The following examples of {bf:ssaggregate} can be run from the Borusyak, Hull, and Jaravel (2019) {browse "https://github.com/borusyak/shift-share":data archive},
+{pstd}The following examples of {bf:ssaggregate} can be run from the Borusyak, Hull, and Jaravel (2020) {browse "https://github.com/borusyak/shift-share":data archive},
 after loading into memory the main Autor, Dorn, and Hanson (2013) replication dataset (with {cmd:use location_level, clear}).{p_end}
 
 {phang2}{it:Using separate "long" share dataset}
@@ -204,7 +216,7 @@ after loading into memory the main Autor, Dorn, and Hanson (2013) replication da
 
 {phang2}{cmd:. reg l_sh_routine33 g year [aw=s_n], r}
 
-{pstd} See {browse "https://arxiv.org/abs/1806.01221":Borusyak, Hull, and Jaravel (2019)} for other examples of shock-level 
+{pstd} See {browse "https://arxiv.org/abs/1806.01221":Borusyak, Hull, and Jaravel (2020)} for other examples of shock-level 
 analyses and guidance on specifying and validating a quasi-experimental shift-share IV.
 
 

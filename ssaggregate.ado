@@ -1,8 +1,8 @@
-*! version 1.2.1, apr2019
+*! version 1.2.2, jan2020
 *! Kirill Borusyak (k.borusyak@ucl.ac.uk), Peter Hull (hull@uchicago.edu), Xavier Jaravel (x.jaravel@lse.ac.uk)
 program def ssaggregate
 	version 11.0
-	syntax varlist [if] [in] [aw iw fw pw/], n(string) s(string) [t(varlist) Controls(string asis) ADDMissing ///
+	syntax varlist [if] [in] [aw iw fw pw/], n(string) s(string) [t(varlist) Controls(string asis) Absorb(string asis) ADDMissing ///
 		STRring /// wide syntax only
 		l(varlist) SFILEname(string)] // long syntax only
 	
@@ -20,6 +20,10 @@ program def ssaggregate
 		}
 		if (strtrim(`"`controls'"')!="" & !regexm(`"`controls'"',`"""')) {
 			di as error "Each set of controls must be specified in quotes"
+			exit 198
+		}
+		if (strtrim(`"`absorb'"')!="" & !regexm(`"`absorb'"',`"""')) {
+			di as error "Each set of fixed effects must be specified in quotes"
 			exit 198
 		}
 
@@ -76,23 +80,60 @@ program def ssaggregate
 		
 		* Residualize outcomes on each set of controls
 		tempvar resid
-		tokenize `"`controls'"'
+		
+		if (`"`controls'"'!="") {
+			tokenize `"`controls'"'
+			if (`"`51'"'!="") {
+				noi di as error "More than 50 control sets are not allowed"
+				exit 198
+			}
+			local ccount = 50
+			while (`"``ccount''"'=="" & `ccount'>0) {
+				local ccount = `ccount' - 1
+			}
+			if (`ccount'>0) {
+				forvalues index = 1/`ccount' {
+					local cset`index' = `"``index''"'
+				}
+			}
+		}
+		else local ccount = 0
+
+		if (`"`absorb'"'!="") {
+			tokenize `"`absorb'"'
+			if (`"`51'"'!="") {
+				noi di as error "More than 50 fixed effect sets are not allowed"
+				exit 198
+			}
+			local acount = 50
+			while (`"``acount''"'=="" & `acount'>0) {
+				local acount = `acount' - 1
+			}
+			if (`acount'>0) {
+				forvalues index = 1/`acount' {
+					local aset`index' = `"``index''"'
+				}
+			}
+		}
+		else local acount = 0 // # of absorb sets
+
+		local cacount = max(`acount',`ccount',1) // if no controls or FE, still have one iteration with simple demeaning
+		
 		local vars = ""
-		local cset = 0
-		while (`"`*'"'!="" | `cset'==0) {
-			local cset = `cset'+1
+		forvalues index = 1/`cacount' {
 			if (`checkcontrols') { // Make sure S_l is perfectly predicted by each set of controls, then no problem
-				reg `s0' `1'
+				if (`"`aset`index''"'=="") reg `s0' `cset`index''
+					else reghdfe `s0' `cset`index'', absorb(`aset`index'')		
 				if (e(r2)<0.9999) {
 					if ("`addmissing'"=="") {
 						noi di as error "WARNING: You are in the incomplete share case (the sum of exposure shares varies)"
-						noi di as error "and you have not controlled for the sum of shares (in control set `cset')."
+						noi di as error "and you have not controlled for the sum of shares (in control set `index')."
 						noi di as error "You should either include the missing industry or (better in most cases) add the sum-of-share"
 						noi di as error "control. Otherwise the shock-level IV coefficient does not equal the shift-share IV."
 					}
 					else {
 						noi di "Warning: You are in the incomplete share case (the sum of exposure shares varies)"
-						noi di "and you have not controlled for the sum of shares (in control set `cset')."
+						noi di "and you have not controlled for the sum of shares (in control set `index')."
 						noi di "Keep in mind that this imposes the assumption that shocks are mean-zero."
 					}
 					drop `s0'
@@ -101,20 +142,23 @@ program def ssaggregate
 			}
 			
 			foreach v of varlist `varlist' {
-				reg `v' `1' `ww'
-				predict `resid', resid
-				gen `v'`cset' = `resid'
-				local vars `vars' `v'`cset'
+				if (`"`aset`index''"'=="") {
+					reg `v' `cset`index'' `ww'
+					predict `resid', resid
+				}
+				else reghdfe `v' `cset`index'' `ww', absorb(`aset`index'') resid(`resid') keepsing
+				
+				if (`cacount'>1) {
+					gen `v'`index' = `resid'
+					local vars `vars' `v'`index'
+				}
+				else { // if <=1 set of controls & FE, don't append 1 to variable names
+					replace `v' = `resid'
+					local vars `vars' `v'
+				}
 				drop `resid'
+				
 			}
-			macro shift
-		}
-		if (`cset'<=1) { // at most one set of controls
-			foreach v of varlist `varlist' {
-				drop `v'
-				rename `v'1 `v'
-			}
-			local vars `varlist'
 		}
 		
 		* Merge with the shares
